@@ -34,12 +34,10 @@ class LSTMModel:
         return model
 
     def compile_model(self):
-        from keras.optimizers import SGD
 
-        opt = SGD(lr=0.01)
         self.model.compile(
             loss="binary_crossentropy",
-            optimizer=opt,
+            optimizer="adam",
             metrics=["accuracy", tf.keras.metrics.Precision()],
         )
 
