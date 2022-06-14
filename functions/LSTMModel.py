@@ -2,35 +2,39 @@ from keras.models import Model
 from keras.layers import Dense, Dropout, Input, Embedding, LSTM, Bidirectional
 import tensorflow as tf
 from constants import EMBEDDING_DIM, MAX_SEQUENCE_LENGTH, MAX_VOCAB_SIZE
+from keras.layers import (
+    Dense,
+    Dropout,
+    Input,
+    Embedding,
+    LSTM,
+    Bidirectional,
+    SpatialDropout1D,
+    Conv1D,
+)
 
 
 class LSTMModel:
-    def __init__(self, bidirectional: bool, stacked: bool):
-        self.bidirectional = bidirectional
-        self.stacked = stacked
-        self.model = self.create_model()
+    
+    """
+    Wrapper function for LSTM model
+    """    
+    def __init__(self, embedding_layer):
+        self.embedding_layer = embedding_layer
+        self.model = self.create_model(self.embedding_layer)
 
-    def create_model(self):
-        inputs = Input(name="inputs", shape=(None,))
-        layer = Embedding(
-            input_dim=MAX_VOCAB_SIZE,
-            output_dim=EMBEDDING_DIM,
-            input_length=MAX_SEQUENCE_LENGTH,
-            mask_zero=False,
-            name="embedding",
-        )(inputs)
-        if self.bidirectional:
-            if self.stacked is True:
-                layer = Bidirectional(LSTM(32, return_sequences=True))(layer)
-            layer = Bidirectional(LSTM(32))(layer)
-        else:
-            if self.stacked is True:
-                layer = LSTM(32, return_sequences=True)(layer)
-            layer = LSTM(32)(layer)
-        layer = Dense(256, name="FC1", activation="relu")(layer)
-        layer = Dropout(0.5)(layer)
-        preds = Dense(1, name="out_layer", activation="sigmoid")(layer)
-        model = Model(inputs=inputs, outputs=preds)
+    def create_model(self, embedding_layer):
+        sequence_input = Input(shape=(MAX_SEQUENCE_LENGTH,), dtype="int32")
+        embedding_sequences = embedding_layer(sequence_input)
+
+        x = SpatialDropout1D(0.2)(embedding_sequences)
+        x = Conv1D(64, 5, activation="relu")(x)
+        x = Bidirectional(LSTM(64, dropout=0.2, recurrent_dropout=0.2))(x)
+        x = Dense(512, activation="relu")(x)
+        x = Dropout(0.5)(x)
+        x = Dense(512, activation="relu")(x)
+        outputs = Dense(1, activation="sigmoid")(x)
+        model = Model(sequence_input, outputs)
         return model
 
     def compile_model(self):
