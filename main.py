@@ -105,9 +105,8 @@ def main():
     if not exists(REARRANGED_SINGLE_INPUT_WINDOWED_LABEL_FILEPATH) and not exists(
         REARRANGED_SINGLE_INPUT_WINDOWED_LABEL_FILEPATH
     ):
-        w1 = WindowGenerator(input_width=1, output_width=30, save_windows=True)
+        w1 = WindowGenerator(input_width=30, output_width=30, save_windows=True)
         w1.window_single_input_sequence(time_series_df)
-
     with open(REARRANGED_SINGLE_INPUT_WINDOWED_DATA_FILEPATH, "rb") as f:
         loaded_dataset = pickle.load(f)
 

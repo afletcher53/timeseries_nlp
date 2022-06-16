@@ -35,34 +35,49 @@ class WindowGenerator:
     def window_multi_input_sequence(
         self, data: pandas.DataFrame
     ) -> Tuple[np.ndarray, np.ndarray]:
-        pass
-        # data = data.head(100)
-        # input_sequence_per_visit: list = []
+        data = data.head(100)
+        sequence: list = []
+        labels: list = []
         # output_category_per_visit: list = []
-        # non_null_indexes = list(
-        #     zip(*np.where(data.notnull()))
-        # )  # Get indexes of df where values which are not null
+        non_null_indexes = list(
+            zip(*np.where(data.notnull()))
+        )  # Get indexes of df where values which are not null
 
-        # for i in tqdm.tqdm(range(len(data.index)), ncols=100, desc="Windowing data..."):
+        for index in non_null_indexes:
+            row = index[0]
+            column = index[1]
 
-        #     visit_indexes = [
-        #         item[1] for item in non_null_indexes if item[0] == i
-        #     ]  # Indexes of all EHR entries for patient
+            lower_bound = clamp(
+                self.minimum_day_of_year,
+                column - self.input_width,
+                self.maximum_day_of_year,
+            )
 
-        #     for visit_index in visit_indexes:
-        #         input_sequence, output_sequence = self._extract_inputs_outputs_sequence(
-        #             row=data.iloc[[i]], visit_index=visit_index
-        #         )
-        #         input_sequence = np.squeeze(input_sequence.to_numpy())
-        #         input_sequence_per_visit.append(input_sequence)
-        #         output_category_per_visit.append(
-        #             self._categorize_output_sequence(output_sequence=output_sequence)
-        #         )
+            upper_bound = clamp(
+                self.minimum_day_of_year,
+                column + self.input_width + 1,
+                self.maximum_day_of_year,
+            )
 
-        # if self.save_windows:
-        #     self.save_window(input_sequence_per_visit, output_category_per_visit)
+            input_sequence = data.iloc[row, lower_bound + 1 : column + 1]
+            output_sequence = data.iloc[row, column + 1 : upper_bound]
+            # input_sequence = self._pad_timeseries(sequence=input_sequence)
+            sequence.append(input_sequence)
 
-        # return input_sequence_per_visit, output_category_per_visit
+            label = self._categorize_output_sequence(output_sequence=output_sequence)
+            labels.append(label)
+        if self.save_windows:
+            self.save_frames(output_labels=np.array(labels), input_sequence=sequence)
+
+        return sequence, np.array(labels)
+
+    # def _pad_timeseries(self, sequence):
+    #     pad_nan_delta = self.input_width - len(sequence)
+    #     if pad_nan_delta > 0:
+    #         sequence = np.pad(
+    #             sequence, (pad_nan_delta, 0), "constant", constant_values=OOV_TOKEN
+    #         )
+    #     return sequence
 
     def save_window(self, input_sequence_per_visit, output_category_per_visit):
         print("------Saving windows for reuse ------")
@@ -96,7 +111,7 @@ class WindowGenerator:
         input_sequence = row.iloc[:, lower_bound + 1 : visit_index + 1]
         output_sequence = row.iloc[:, visit_index + 1 : upper_bound]
 
-        return input_sequence, output_sequence
+        return np.array(input_sequence), np.array(output_sequence)
 
     def window_single_input_sequence(
         self, data: pandas.DataFrame
@@ -140,12 +155,17 @@ class WindowGenerator:
                 all_labels.append(self._categorize_output_sequence(label_sequence))
 
         if self.save_windows:
-            print("------Saving windows for reuse ------")
-            with open(REARRANGED_SINGLE_INPUT_WINDOWED_DATA_FILEPATH, "wb") as f:
-                pickle.dump(input_timesteps_sequence, f)
-            with open(REARRANGED_SINGLE_INPUT_WINDOWED_LABEL_FILEPATH, "wb") as f:
-                pickle.dump(all_labels, f)
+            self.save_frames(
+                output_labels=all_labels, input_sequence=input_timesteps_sequence
+            )
         return input_timesteps_sequence, all_labels
+
+    def save_frames(self, output_labels, input_sequence):
+        print("------Saving windows for reuse ------")
+        with open(REARRANGED_SINGLE_INPUT_WINDOWED_DATA_FILEPATH, "wb") as f:
+            pickle.dump(input_sequence, f)
+        with open(REARRANGED_SINGLE_INPUT_WINDOWED_LABEL_FILEPATH, "wb") as f:
+            pickle.dump(output_labels, f)
 
     def _categorize_output_sequence(self, output_sequence: pandas.DataFrame) -> bool:
         """Categorise output sequence to binary
