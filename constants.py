@@ -14,6 +14,8 @@ DATA_FILEPATH = "./data/data.csv"
 REARRANGED_DATA_FILEPATH = "./data/rearranged_data.csv"
 REARRANGED_SINGLE_INPUT_WINDOWED_DATA_FILEPATH = "./data/windowed_single_input.pkl"
 REARRANGED_SINGLE_INPUT_WINDOWED_LABEL_FILEPATH = "./data/windowed_single_labels.pkl"
+REARRANGED_MULTI_INPUT_WINDOWED_DATA_FILEPATH = "./data/windowed_MULTI_input.pkl"
+REARRANGED_MULTI_INPUT_WINDOWED_LABEL_FILEPATH = "./data/windowed_MULTI_labels.pkl"
 MAX_SEQUENCE_LENGTH: int = 200  # max number of words in a comment to use
 MAX_VOCAB_SIZE: int = (
     10000  # how many unique words to use (i.e num rows in embedding vector)
@@ -21,3 +23,4 @@ MAX_VOCAB_SIZE: int = (
 LR = 1e-3
 
 GLOVE_300D_FILEPATH = "./data/glove.6B.300d.txt"
+EMPTY_TIMESTEP_TOKEN = "<EMPTY>"

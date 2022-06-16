@@ -5,7 +5,10 @@ import numpy as np
 import pandas
 import tqdm
 from constants import (
+    EMPTY_TIMESTEP_TOKEN,
     OOV_TOKEN,
+    REARRANGED_MULTI_INPUT_WINDOWED_DATA_FILEPATH,
+    REARRANGED_MULTI_INPUT_WINDOWED_LABEL_FILEPATH,
     REARRANGED_SINGLE_INPUT_WINDOWED_DATA_FILEPATH,
     REARRANGED_SINGLE_INPUT_WINDOWED_LABEL_FILEPATH,
 )
@@ -61,23 +64,27 @@ class WindowGenerator:
 
             input_sequence = data.iloc[row, lower_bound + 1 : column + 1]
             output_sequence = data.iloc[row, column + 1 : upper_bound]
-            # input_sequence = self._pad_timeseries(sequence=input_sequence)
+            input_sequence = self._pad_timeseries(sequence=input_sequence)
+            print(len(input_sequence))
             sequence.append(input_sequence)
 
             label = self._categorize_output_sequence(output_sequence=output_sequence)
             labels.append(label)
         if self.save_windows:
-            self.save_frames(output_labels=np.array(labels), input_sequence=sequence)
+            self.save_frames(output_labels=np.array(labels), input_sequence=sequence, multi=True)
 
         return sequence, np.array(labels)
 
-    # def _pad_timeseries(self, sequence):
-    #     pad_nan_delta = self.input_width - len(sequence)
-    #     if pad_nan_delta > 0:
-    #         sequence = np.pad(
-    #             sequence, (pad_nan_delta, 0), "constant", constant_values=OOV_TOKEN
-    #         )
-    #     return sequence
+    def _pad_timeseries(self, sequence):
+        pad_nan_delta = self.input_width - len(sequence)
+        if pad_nan_delta > 0:
+            sequence = np.pad(
+                sequence,
+                (pad_nan_delta, 0),
+                "constant",
+                constant_values=EMPTY_TIMESTEP_TOKEN,
+            )
+        return sequence
 
     def save_window(self, input_sequence_per_visit, output_category_per_visit):
         print("------Saving windows for reuse ------")
@@ -160,12 +167,18 @@ class WindowGenerator:
             )
         return input_timesteps_sequence, all_labels
 
-    def save_frames(self, output_labels, input_sequence):
+    def save_frames(self, output_labels, input_sequence, multi: bool = False):
         print("------Saving windows for reuse ------")
-        with open(REARRANGED_SINGLE_INPUT_WINDOWED_DATA_FILEPATH, "wb") as f:
-            pickle.dump(input_sequence, f)
-        with open(REARRANGED_SINGLE_INPUT_WINDOWED_LABEL_FILEPATH, "wb") as f:
-            pickle.dump(output_labels, f)
+        if multi:
+            with open(REARRANGED_MULTI_INPUT_WINDOWED_DATA_FILEPATH, "wb") as f:
+                pickle.dump(input_sequence, f)
+            with open(REARRANGED_MULTI_INPUT_WINDOWED_LABEL_FILEPATH, "wb") as f:
+                pickle.dump(output_labels, f)
+        else:
+            with open(REARRANGED_SINGLE_INPUT_WINDOWED_DATA_FILEPATH, "wb") as f:
+                pickle.dump(input_sequence, f)
+            with open(REARRANGED_SINGLE_INPUT_WINDOWED_LABEL_FILEPATH, "wb") as f:
+                pickle.dump(output_labels, f)
 
     def _categorize_output_sequence(self, output_sequence: pandas.DataFrame) -> bool:
         """Categorise output sequence to binary
@@ -176,7 +189,6 @@ class WindowGenerator:
         Returns:
             bool: 0 = no revisit, 1 = revisit
         """
-        print("")
         if output_sequence.isnull().all().all():
             return 0
         else:
