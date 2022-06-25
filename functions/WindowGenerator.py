@@ -38,10 +38,9 @@ class WindowGenerator:
     def window_multi_input_sequence(
         self, data: pandas.DataFrame
     ) -> Tuple[np.ndarray, np.ndarray]:
-        data = data.head(100)
         sequence: list = []
         labels: list = []
-        # output_category_per_visit: list = []
+        data = data.head(200)
         non_null_indexes = list(
             zip(*np.where(data.notnull()))
         )  # Get indexes of df where values which are not null
@@ -65,13 +64,14 @@ class WindowGenerator:
             input_sequence = data.iloc[row, lower_bound + 1 : column + 1]
             output_sequence = data.iloc[row, column + 1 : upper_bound]
             input_sequence = self._pad_timeseries(sequence=input_sequence)
-            print(len(input_sequence))
             sequence.append(input_sequence)
 
             label = self._categorize_output_sequence(output_sequence=output_sequence)
             labels.append(label)
         if self.save_windows:
-            self.save_frames(output_labels=np.array(labels), input_sequence=sequence, multi=True)
+            self.save_frames(
+                output_labels=np.array(labels), input_sequence=sequence, multi=True
+            )
 
         return sequence, np.array(labels)
 
@@ -137,7 +137,6 @@ class WindowGenerator:
             Tuple[np.ndarray, np.ndarray]: Input Sequences, Labels
         """
 
-        data = data.head(100)
         non_null_indexes = list(
             zip(*np.where(data.notnull()))
         )  # Get indexes of df where values which are not null

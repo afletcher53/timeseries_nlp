@@ -1,3 +1,1 @@
 Main parameter to wipe previous windowed data
-Set up main off f5
-Rework window_multi_input_sequence to return 3 dimensional data (num samples, timesteps, text entry)

@@ -4,8 +4,8 @@ MAX_VOCAB_SIZE: int = (
 )
 MAX_SEQUENCE_LENGTH: int = 200  # max number of words in a comment to use
 OOV_TOKEN: str = "<00V>"
-BATCH_SIZE: int = 256
-NUM_EPOCHS: int = 10
+BATCH_SIZE: int = 128
+NUM_EPOCHS: int = 20
 TEST_TRAIN_SPLIT: float = 0.2
 VALIDATION_SPLIT: float = 0.2
 
@@ -24,3 +24,12 @@ LR = 1e-3
 
 GLOVE_300D_FILEPATH = "./data/glove.6B.300d.txt"
 EMPTY_TIMESTEP_TOKEN = "<EMPTY>"
+TIME_STEP: int = 30
+
+X_TRAIN_MULTI_INPUT_SAVE_FILE: str = "./data/X_train_MULTI.pkl"
+Y_TRAIN_MULTI_INPUT_SAVE_FILE: str = "./data/Y_train_MULTI.pkl"
+Y_VAL_MULTI_INPUT_SAVE_FILE: str = "./data/Y_val_MULTI.pkl"
+X_VAL_MULTI_INPUT_SAVE_FILE: str = "./data/X_val_MULTI.pkl"
+X_TEST_MULTI_INPUT_SAVE_FILE: str = "./data/X_test_MULTI.pkl"
+Y_TEST_MULTI_INPUT_SAVE_FILE: str = "./data/Y_test_MULTI.pkl"
+EMBEDDING_MATRIX_SAVE_FILE: str = "./data/embedding_matrix.pkl"
