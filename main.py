@@ -1,4 +1,3 @@
-from cmath import sin
 import pickle
 import warnings
 from os.path import exists
@@ -11,11 +10,19 @@ from tqdm import tqdm
 from keras.layers import Embedding, TextVectorization
 from functions.LSTMModel import LSTMModel
 from functions.WindowGenerator import WindowGenerator
+from keras.models import Model
+from keras.layers import (
+    Input,
+    TimeDistributed,
+    LSTM,
+    Dense,
+)
 
 from constants import (
     BATCH_SIZE,
     DATA_FILEPATH,
     EMBEDDING_DIM,
+    EMBEDDING_MATRIX_SAVE_FILE,
     EMPTY_TIMESTEP_TOKEN,
     GLOVE_300D_FILEPATH,
     MAX_SEQUENCE_LENGTH,
@@ -26,7 +33,15 @@ from constants import (
     REARRANGED_MULTI_INPUT_WINDOWED_LABEL_FILEPATH,
     REARRANGED_SINGLE_INPUT_WINDOWED_DATA_FILEPATH,
     REARRANGED_SINGLE_INPUT_WINDOWED_LABEL_FILEPATH,
+    SEED,
     TEST_TRAIN_SPLIT,
+    TIME_STEP,
+    X_TEST_MULTI_INPUT_SAVE_FILE,
+    X_TRAIN_MULTI_INPUT_SAVE_FILE,
+    X_VAL_MULTI_INPUT_SAVE_FILE,
+    Y_TEST_MULTI_INPUT_SAVE_FILE,
+    Y_TRAIN_MULTI_INPUT_SAVE_FILE,
+    Y_VAL_MULTI_INPUT_SAVE_FILE,
 )
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -59,25 +74,44 @@ def embed_vectors(text_vectorization):
 
 
 def test_train_splt(loaded_labels, dataset):
-    X_train_val, X_test, Y_train_val, Y_test = train_test_split(
-        dataset, loaded_labels, test_size=TEST_TRAIN_SPLIT
-    )
-
-    # Split the remaining data to train and validation
-    X_train, X_val, Y_train, Y_val = train_test_split(
-        X_train_val, Y_train_val, test_size=TEST_TRAIN_SPLIT, shuffle=True
+    X_train, X_test, Y_train, Y_test = train_test_split(
+        dataset,
+        loaded_labels,
+        test_size=TEST_TRAIN_SPLIT,
+        stratify=loaded_labels,
+        shuffle=True,
+        random_state=SEED,
     )
 
     print(
         X_train.shape,
-        X_val.shape,
         X_test.shape,
         Y_train.shape,
-        Y_val.shape,
         Y_test.shape,
     )
-    # (num_samples, max_sequence_length)
     return X_test, Y_test, X_train, Y_train
+
+
+# def test_train_splt(loaded_labels, dataset):
+#     X_train_val, X_test, Y_train_val, Y_test = train_test_split(
+#         dataset, loaded_labels, test_size=TEST_TRAIN_SPLIT
+#     )
+
+#     # Split the remaining data to train and validation
+#     X_train, X_val, Y_train, Y_val = train_test_split(
+#         X_train_val, Y_train_val, test_size=TEST_TRAIN_SPLIT, shuffle=True
+#     )
+
+#     print(
+#         X_train.shape,
+#         X_val.shape,
+#         X_test.shape,
+#         Y_train.shape,
+#         Y_val.shape,
+#         Y_test.shape,
+#     )
+#     # (num_samples, max_sequence_length)
+#     return X_test, Y_test, X_train, Y_train
 
 
 def vectorize_data_single_timestep(text_vectorization, loaded_dataset):
@@ -94,7 +128,9 @@ def generate_windows(time_series_df, multi: bool = False):
         if not exists(REARRANGED_MULTI_INPUT_WINDOWED_DATA_FILEPATH) and not exists(
             REARRANGED_SINGLE_INPUT_WINDOWED_LABEL_FILEPATH
         ):
-            w1 = WindowGenerator(input_width=30, output_width=30, save_windows=True)
+            w1 = WindowGenerator(
+                input_width=TIME_STEP, output_width=TIME_STEP, save_windows=True
+            )
             w1.window_multi_input_sequence(time_series_df)
         with open(REARRANGED_MULTI_INPUT_WINDOWED_DATA_FILEPATH, "rb") as f:
             loaded_dataset = pickle.load(f)
@@ -105,7 +141,9 @@ def generate_windows(time_series_df, multi: bool = False):
         if not exists(REARRANGED_SINGLE_INPUT_WINDOWED_DATA_FILEPATH) and not exists(
             REARRANGED_SINGLE_INPUT_WINDOWED_LABEL_FILEPATH
         ):
-            w1 = WindowGenerator(input_width=30, output_width=30, save_windows=True)
+            w1 = WindowGenerator(
+                input_width=TIME_STEP, output_width=TIME_STEP, save_windows=True
+            )
             w1.window_single_input_sequence(time_series_df)
         with open(REARRANGED_SINGLE_INPUT_WINDOWED_DATA_FILEPATH, "rb") as f:
             loaded_dataset = pickle.load(f)
@@ -212,13 +250,103 @@ def single_timestep_predictions():
     print(LSTM1.model.evaluate(X_test, Y_test))
 
 
-def multiple_timestep_prediction():
-    df = load_datafile()
-    time_series_df = refactor_dataframe(df)
-    text_vectorization = create_textvectorisation(df)
-    loaded_dataset, loaded_labels = generate_windows(time_series_df, multi=True)
-    test = vectorize_data_multi_timestep(text_vectorization, loaded_dataset)
-    print(test.shape)
+def save_variables(X_train, Y_train, X_test, Y_test, embedding_matrix):
+    print("------Saving varaibles for reuse ------")
+    print(f"X_train shape: {X_train.shape}")
+    print(f"Y_train shape: {Y_train.shape}")
+    print(f"X_test shape: {X_test.shape}")
+    print(f"Y_test shape: {Y_test.shape}")
+
+    print(f"Embedding shape: {embedding_matrix.shape}")
+
+    with open(X_TRAIN_MULTI_INPUT_SAVE_FILE, "wb") as f:
+        pickle.dump(X_train, f)
+    with open(Y_TRAIN_MULTI_INPUT_SAVE_FILE, "wb") as f:
+        pickle.dump(Y_train, f)
+    with open(X_TEST_MULTI_INPUT_SAVE_FILE, "wb") as f:
+        pickle.dump(X_test, f)
+    with open(Y_TEST_MULTI_INPUT_SAVE_FILE, "wb") as f:
+        pickle.dump(Y_test, f)
+
+    with open(EMBEDDING_MATRIX_SAVE_FILE, "wb") as f:
+        pickle.dump(embedding_matrix, f)
+
+
+def multiple_timestep_prediction(load_from_save: bool = True):
+    if not load_from_save:
+        df = load_datafile()
+        time_series_df = refactor_dataframe(df)
+        text_vectorization = create_textvectorisation(df)
+        loaded_dataset, loaded_labels = generate_windows(time_series_df, multi=True)
+        dataset = vectorize_data_multi_timestep(text_vectorization, loaded_dataset)
+        loaded_labels = numpy.array(loaded_labels)
+        X_test, Y_test, X_train, Y_train = test_train_splt(loaded_labels, dataset)
+        embedding_matrix = embed_vectors(text_vectorization)
+        save_variables(
+            X_train=X_train,
+            Y_train=Y_train,
+            X_test=X_test,
+            Y_test=Y_test,
+            embedding_matrix=embedding_matrix,
+        )
+
+    with open(X_TRAIN_MULTI_INPUT_SAVE_FILE, "rb") as f:
+        X_train = pickle.load(f)
+    with open(Y_TRAIN_MULTI_INPUT_SAVE_FILE, "rb") as f:
+        Y_train = pickle.load(f)
+    with open(X_TEST_MULTI_INPUT_SAVE_FILE, "rb") as f:
+        X_test = pickle.load(f)
+    with open(Y_TEST_MULTI_INPUT_SAVE_FILE, "rb") as f:
+        Y_test = pickle.load(f)
+    with open(EMBEDDING_MATRIX_SAVE_FILE, "rb") as f:
+        embedding_matrix = pickle.load(f)
+    import tensorflow as tf
+
+    print("------Saving varaibles for reuse ------")
+    print(f"X_train shape: {X_train.shape}")
+    print(f"Y_train shape: {Y_train.shape}")
+    print(f"X_test shape: {X_test.shape}")
+    print(f"Y_test shape: {Y_test.shape}")
+    print(f"Embedding shape: {embedding_matrix.shape}")
+    print(f"Total 0 values: {(Y_train == 0).sum()}")
+    print(f"Total 1 values: {(Y_train == 1).sum()}")
+    # embedding_layer = Embedding(
+    #     MAX_VOCAB_SIZE,
+    #     EMBEDDING_DIM,
+    #     weights=[embedding_matrix],
+    #     input_length=MAX_SEQUENCE_LENGTH,
+    #     trainable=False,
+    # )
+
+    # document_input = Input(
+    #     shape=(MAX_SEQUENCE_LENGTH,),
+    #     dtype="int32",
+    # )
+    # embedding_sequences = embedding_layer(document_input)
+    # x = LSTM(12)(embedding_sequences)
+    # doc_model = Model(document_input, x)
+    # input_docs = Input(
+    #     shape=(TIME_STEP, MAX_SEQUENCE_LENGTH), name="input_docs", dtype="int32"
+    # )
+
+    # x = TimeDistributed(doc_model, name="token_embedding_model")(input_docs)
+    # x = LSTM(12)(x)
+    # outputs = Dense(1, activation="sigmoid")(x)
+
+    # model = Model(input_docs, outputs)
+    # from tensorflow.keras.optimizers import SGD
+
+    # opt = SGD(learning_rate=0.000001, decay=1e-6, momentum=0.9, nesterov=True)
+    # model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])
+    # model.summary()
+
+    # model.fit(
+    #     X_train,
+    #     Y_train,
+    #     batch_size=BATCH_SIZE,
+    #     epochs=NUM_EPOCHS,
+    #     validation_data=(X_val, Y_val),
+    # )
 
 
 def vectorize_data_multi_timestep(text_vectorization, loaded_dataset):
@@ -237,7 +365,7 @@ def vectorize_data_multi_timestep(text_vectorization, loaded_dataset):
 
 
 def main():
-    multiple_timestep_prediction()
+    multiple_timestep_prediction(load_from_save=True)
     # single_timestep_predictions()
 
 
