@@ -40,7 +40,6 @@ class WindowGenerator:
     ) -> Tuple[np.ndarray, np.ndarray]:
         sequence: list = []
         labels: list = []
-        data = data.head(200)
         non_null_indexes = list(
             zip(*np.where(data.notnull()))
         )  # Get indexes of df where values which are not null

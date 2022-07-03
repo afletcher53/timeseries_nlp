@@ -322,27 +322,31 @@ def multiple_timestep_prediction(
         trainable=False,
     )
 
+    fit_lstm_recurrent_model(x_train, y_train, x_test, y_test, embedding_layer)
+
+
+def fit_lstm_recurrent_model(x_train, y_train, x_test, y_test, embedding_layer):
     document_input = Input(
         shape=(MAX_SEQUENCE_LENGTH,),
         dtype="int32",
     )
     embedding_sequences = embedding_layer(document_input)
 
-    x = Bidirectional(LSTM(12, return_sequences=True))(embedding_sequences)
-    x = Bidirectional(LSTM(12))(x)
+    x = LSTM(12, return_sequences=True)(embedding_sequences)
+    x = LSTM(12)(x)
     doc_model = Model(document_input, x)
     input_docs = Input(
         shape=(TIME_STEP, MAX_SEQUENCE_LENGTH), name="input_docs", dtype="int32"
     )
 
     x = TimeDistributed(doc_model, name="token_embedding_model")(input_docs)
-    x = Bidirectional(LSTM(12))(x)
+    x = LSTM(12)(x)
     outputs = Dense(1, activation="sigmoid")(x)
 
     model = Model(input_docs, outputs)
 
-    opt = SGD(learning_rate=0.00001, decay=1e-6, momentum=0.9, nesterov=True)
-    model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])
+    opt = tf.keras.optimizers.Adam(learning_rate=1e-6, beta_1=0.5, beta_2=0.999)
+    model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
     model.summary()
 
     model.fit(
@@ -352,6 +356,9 @@ def multiple_timestep_prediction(
         epochs=NUM_EPOCHS,
         validation_split=VALIDATION_SPLIT,
     )
+
+    results = model.evaluate(x_test, y_test)
+    print("test loss, test acc:", results)
 
 
 def vectorize_data_multi_timestep(text_vectorization, loaded_dataset):
@@ -370,7 +377,7 @@ def vectorize_data_multi_timestep(text_vectorization, loaded_dataset):
 
 
 def main():
-    multiple_timestep_prediction(load_from_save=True)
+    multiple_timestep_prediction(load_from_save=False)
     # single_timestep_predictions()
 
 
