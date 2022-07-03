@@ -7,7 +7,7 @@ import pandas as pd
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
-from keras.layers import Embedding, TextVectorization
+from keras.layers import Embedding, TextVectorization, BatchNormalization, Bidirectional
 from functions.LSTMModel import LSTMModel
 from functions.WindowGenerator import WindowGenerator
 from keras.models import Model
@@ -17,6 +17,9 @@ from keras.layers import (
     LSTM,
     Dense,
 )
+from imblearn.over_sampling import SMOTE
+from tensorflow.keras.optimizers import SGD
+
 
 from constants import (
     BATCH_SIZE,
@@ -36,12 +39,11 @@ from constants import (
     SEED,
     TEST_TRAIN_SPLIT,
     TIME_STEP,
+    VALIDATION_SPLIT,
     X_TEST_MULTI_INPUT_SAVE_FILE,
     X_TRAIN_MULTI_INPUT_SAVE_FILE,
-    X_VAL_MULTI_INPUT_SAVE_FILE,
     Y_TEST_MULTI_INPUT_SAVE_FILE,
     Y_TRAIN_MULTI_INPUT_SAVE_FILE,
-    Y_VAL_MULTI_INPUT_SAVE_FILE,
 )
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -90,28 +92,6 @@ def test_train_splt(loaded_labels, dataset):
         Y_test.shape,
     )
     return X_test, Y_test, X_train, Y_train
-
-
-# def test_train_splt(loaded_labels, dataset):
-#     X_train_val, X_test, Y_train_val, Y_test = train_test_split(
-#         dataset, loaded_labels, test_size=TEST_TRAIN_SPLIT
-#     )
-
-#     # Split the remaining data to train and validation
-#     X_train, X_val, Y_train, Y_val = train_test_split(
-#         X_train_val, Y_train_val, test_size=TEST_TRAIN_SPLIT, shuffle=True
-#     )
-
-#     print(
-#         X_train.shape,
-#         X_val.shape,
-#         X_test.shape,
-#         Y_train.shape,
-#         Y_val.shape,
-#         Y_test.shape,
-#     )
-#     # (num_samples, max_sequence_length)
-#     return X_test, Y_test, X_train, Y_train
 
 
 def vectorize_data_single_timestep(text_vectorization, loaded_dataset):
@@ -238,7 +218,7 @@ def single_timestep_predictions():
         factor=0.1, min_lr=0.01, monitor="val_loss", verbose=1
     )
 
-    history = LSTM1.model.fit(
+    LSTM1.model.fit(
         X_train,
         Y_train,
         batch_size=BATCH_SIZE,
@@ -272,7 +252,9 @@ def save_variables(X_train, Y_train, X_test, Y_test, embedding_matrix):
         pickle.dump(embedding_matrix, f)
 
 
-def multiple_timestep_prediction(load_from_save: bool = True):
+def multiple_timestep_prediction(
+    load_from_save: bool = True, balance_data: bool = True
+):
     if not load_from_save:
         df = load_datafile()
         time_series_df = refactor_dataframe(df)
@@ -280,73 +262,84 @@ def multiple_timestep_prediction(load_from_save: bool = True):
         loaded_dataset, loaded_labels = generate_windows(time_series_df, multi=True)
         dataset = vectorize_data_multi_timestep(text_vectorization, loaded_dataset)
         loaded_labels = numpy.array(loaded_labels)
-        X_test, Y_test, X_train, Y_train = test_train_splt(loaded_labels, dataset)
+        x_test, y_test, x_train, y_train = test_train_splt(loaded_labels, dataset)
         embedding_matrix = embed_vectors(text_vectorization)
         save_variables(
-            X_train=X_train,
-            Y_train=Y_train,
-            X_test=X_test,
-            Y_test=Y_test,
+            X_train=x_train,
+            Y_train=y_train,
+            X_test=x_test,
+            Y_test=y_test,
             embedding_matrix=embedding_matrix,
         )
 
     with open(X_TRAIN_MULTI_INPUT_SAVE_FILE, "rb") as f:
-        X_train = pickle.load(f)
+        x_train = pickle.load(f)
     with open(Y_TRAIN_MULTI_INPUT_SAVE_FILE, "rb") as f:
-        Y_train = pickle.load(f)
+        y_train = pickle.load(f)
     with open(X_TEST_MULTI_INPUT_SAVE_FILE, "rb") as f:
-        X_test = pickle.load(f)
+        x_test = pickle.load(f)
     with open(Y_TEST_MULTI_INPUT_SAVE_FILE, "rb") as f:
-        Y_test = pickle.load(f)
+        y_test = pickle.load(f)
     with open(EMBEDDING_MATRIX_SAVE_FILE, "rb") as f:
         embedding_matrix = pickle.load(f)
-    import tensorflow as tf
 
     print("------Saving varaibles for reuse ------")
-    print(f"X_train shape: {X_train.shape}")
-    print(f"Y_train shape: {Y_train.shape}")
-    print(f"X_test shape: {X_test.shape}")
-    print(f"Y_test shape: {Y_test.shape}")
+    print(f"X_train shape: {x_train.shape}")
+    print(f"Y_train shape: {y_train.shape}")
+    print(f"X_test shape: {x_test.shape}")
+    print(f"Y_test shape: {y_test.shape}")
     print(f"Embedding shape: {embedding_matrix.shape}")
-    print(f"Total 0 values: {(Y_train == 0).sum()}")
-    print(f"Total 1 values: {(Y_train == 1).sum()}")
-    # embedding_layer = Embedding(
-    #     MAX_VOCAB_SIZE,
-    #     EMBEDDING_DIM,
-    #     weights=[embedding_matrix],
-    #     input_length=MAX_SEQUENCE_LENGTH,
-    #     trainable=False,
-    # )
+    print(f"Total 0 values: {(y_train == 0).sum()}")
+    print(f"Total 1 values: {(y_train == 1).sum()}")
 
-    # document_input = Input(
-    #     shape=(MAX_SEQUENCE_LENGTH,),
-    #     dtype="int32",
-    # )
-    # embedding_sequences = embedding_layer(document_input)
-    # x = LSTM(12)(embedding_sequences)
-    # doc_model = Model(document_input, x)
-    # input_docs = Input(
-    #     shape=(TIME_STEP, MAX_SEQUENCE_LENGTH), name="input_docs", dtype="int32"
-    # )
+    if balance_data:
+        arr = x_train.reshape(len(x_train), -1)
+        sm = SMOTE(random_state=SEED)
+        x_train_bal, y_train = sm.fit_resample(arr, y_train.ravel())
+        print(f"After OverSampling, the shape of train_X: {x_train_bal.shape}")
+        print(f"After OverSampling, the shape of train_y: {y_train.shape}")
+        print(f"After OverSampling, counts of label '1': {sum(y_train == 1)}")
+        print(f"After OverSampling, counts of label '0': {sum(y_train == 0)}")
+        x_train = numpy.reshape(x_train_bal, (-1, x_train.shape[1], x_train.shape[2]))
 
-    # x = TimeDistributed(doc_model, name="token_embedding_model")(input_docs)
-    # x = LSTM(12)(x)
-    # outputs = Dense(1, activation="sigmoid")(x)
+    embedding_layer = Embedding(
+        MAX_VOCAB_SIZE,
+        EMBEDDING_DIM,
+        weights=[embedding_matrix],
+        input_length=MAX_SEQUENCE_LENGTH,
+        trainable=False,
+    )
 
-    # model = Model(input_docs, outputs)
-    # from tensorflow.keras.optimizers import SGD
+    document_input = Input(
+        shape=(MAX_SEQUENCE_LENGTH,),
+        dtype="int32",
+    )
+    embedding_sequences = embedding_layer(document_input)
 
-    # opt = SGD(learning_rate=0.000001, decay=1e-6, momentum=0.9, nesterov=True)
-    # model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])
-    # model.summary()
+    x = Bidirectional(LSTM(12, return_sequences=True))(embedding_sequences)
+    x = Bidirectional(LSTM(12))(x)
+    doc_model = Model(document_input, x)
+    input_docs = Input(
+        shape=(TIME_STEP, MAX_SEQUENCE_LENGTH), name="input_docs", dtype="int32"
+    )
 
-    # model.fit(
-    #     X_train,
-    #     Y_train,
-    #     batch_size=BATCH_SIZE,
-    #     epochs=NUM_EPOCHS,
-    #     validation_data=(X_val, Y_val),
-    # )
+    x = TimeDistributed(doc_model, name="token_embedding_model")(input_docs)
+    x = Bidirectional(LSTM(12))(x)
+    outputs = Dense(1, activation="sigmoid")(x)
+
+    model = Model(input_docs, outputs)
+
+    opt = SGD(learning_rate=0.00001, decay=1e-6, momentum=0.9, nesterov=True)
+    model.compile(loss="categorical_crossentropy", optimizer=opt, metrics=["accuracy"])
+    model.summary()
+
+    model.fit(
+        x_train,
+        y_train,
+        batch_size=BATCH_SIZE,
+        epochs=NUM_EPOCHS,
+        validation_split=VALIDATION_SPLIT,
+    )
 
 
 def vectorize_data_multi_timestep(text_vectorization, loaded_dataset):
