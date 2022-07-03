@@ -46,6 +46,8 @@ from constants import (
     Y_TRAIN_MULTI_INPUT_SAVE_FILE,
 )
 
+tf.random.set_seed(SEED)
+tf.config.experimental.enable_op_determinism()
 warnings.simplefilter(action="ignore", category=FutureWarning)
 tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir="logs")
 AUTOTUNE = tf.data.AUTOTUNE
@@ -230,23 +232,33 @@ def single_timestep_predictions():
     print(LSTM1.model.evaluate(X_test, Y_test))
 
 
-def save_variables(X_train, Y_train, X_test, Y_test, embedding_matrix):
+def save_variables(x_train, y_train, x_test, y_test, embedding_matrix):
+    """Saves variables
+
+    Args:
+        x_train (_type_): _description_
+        y_train (_type_): _description_
+        x_test (_type_): _description_
+        y_test (_type_): _description_
+        embedding_matrix (_type_): _description_
+    """
+
     print("------Saving varaibles for reuse ------")
-    print(f"X_train shape: {X_train.shape}")
-    print(f"Y_train shape: {Y_train.shape}")
-    print(f"X_test shape: {X_test.shape}")
-    print(f"Y_test shape: {Y_test.shape}")
+    print(f"X_train shape: {x_train.shape}")
+    print(f"Y_train shape: {y_train.shape}")
+    print(f"X_test shape: {x_test.shape}")
+    print(f"Y_test shape: {y_test.shape}")
 
     print(f"Embedding shape: {embedding_matrix.shape}")
 
     with open(X_TRAIN_MULTI_INPUT_SAVE_FILE, "wb") as f:
-        pickle.dump(X_train, f)
+        pickle.dump(x_train, f)
     with open(Y_TRAIN_MULTI_INPUT_SAVE_FILE, "wb") as f:
-        pickle.dump(Y_train, f)
+        pickle.dump(y_train, f)
     with open(X_TEST_MULTI_INPUT_SAVE_FILE, "wb") as f:
-        pickle.dump(X_test, f)
+        pickle.dump(x_test, f)
     with open(Y_TEST_MULTI_INPUT_SAVE_FILE, "wb") as f:
-        pickle.dump(Y_test, f)
+        pickle.dump(y_test, f)
 
     with open(EMBEDDING_MATRIX_SAVE_FILE, "wb") as f:
         pickle.dump(embedding_matrix, f)
@@ -265,10 +277,10 @@ def multiple_timestep_prediction(
         x_test, y_test, x_train, y_train = test_train_splt(loaded_labels, dataset)
         embedding_matrix = embed_vectors(text_vectorization)
         save_variables(
-            X_train=x_train,
-            Y_train=y_train,
-            X_test=x_test,
-            Y_test=y_test,
+            x_train=x_train,
+            y_train=y_train,
+            x_test=x_test,
+            y_test=y_test,
             embedding_matrix=embedding_matrix,
         )
 
