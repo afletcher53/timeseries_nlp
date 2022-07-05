@@ -31,13 +31,7 @@ class LSTM_mdl:
         learning_rate: float = LR,
         neuron_num: int = 12,
     ) -> None:
-        match submodel:
-            case LSTMSubModels.STACKED_LSTM:
-                self.stacked: bool = True
-            case LSTMSubModels.BIDIRECTIONAL_STACKED_LSTM:
-                self.stacked: bool = True
-            case _:
-                self.stacked: bool = False
+        self.stacked = True
         self.LR: float = learning_rate
         self.neuron_num: int = neuron_num
         self.submodel: LSTMSubModels = submodel
@@ -87,15 +81,8 @@ class LSTM_mdl:
             validation_split=VALIDATION_SPLIT,
         )
 
-        match self.submodel:
-            case LSTMSubModels.STACKED_LSTM:
-                save_dir = MODEL_SAVE_DIR_LSTM_STACKED
-            case LSTMSubModels.LSTM:
-                save_dir = MODEL_SAVE_DIR_LSTM
-            case LSTMSubModels.BIDIRECTIONAL:
-                save_dir = MODEL_SAVE_DIR_BILSTM
-            case LSTMSubModels.BIDIRECTIONAL_STACKED_LSTM:
-                save_dir = MODEL_SAVE_DIR_BILSTM_STACKED
+        save_dir = MODEL_SAVE_DIR_LSTM_STACKED
+
         if save:
             self.model.save(save_dir)
         return history
