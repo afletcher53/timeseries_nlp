@@ -7,7 +7,8 @@ import pandas as pd
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
-from tensorflow.keras.layers import Embedding, TextVectorization
+from tensorflow.keras.layers import Embedding
+import TextVectorization from tensorflow.keras.layers.experimental.preprocessing 
 from functions.WindowGenerator import WindowGenerator
 from functions.dataframe import (
     create_textvectorisation,
