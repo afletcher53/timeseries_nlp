@@ -337,7 +337,6 @@ def fit_cnn_model(x_train, y_train, x_test, y_test, embedding_layer):
     embedding_sequences = embedding_layer(document_input)
 
     x = Conv1D(filters=300, kernel_size=5, padding="valid")(embedding_sequences)
-    # x = LSTM(12)(x)
     doc_model = Model(document_input, x)
     doc_model.summary()
     input_docs = Input(

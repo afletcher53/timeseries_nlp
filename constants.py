@@ -22,7 +22,7 @@ MAX_SEQUENCE_LENGTH: int = 200  # max number of words in a comment to use
 MAX_VOCAB_SIZE: int = (
     10000  # how many unique words to use (i.e num rows in embedding vector)
 )
-LR: float = 1e-3
+LR: float = 1e-4
 
 GLOVE_300D_FILEPATH: str = "./data/glove.6B.300d.txt"
 EMPTY_TIMESTEP_TOKEN: str = "<EMPTY>"
