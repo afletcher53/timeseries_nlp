@@ -107,18 +107,18 @@ def multiple_timestep_prediction(
         embedding_layer=embedding_layer,
         learning_rate=1e-13,
     )
-    # lstm_mdl.summary()
-    # lstm_mdl.fit(x_train, y_train, epochs=5)
-    # lstm_mdl.evaluate(x_test=x_test, y_test=y_test)
+    lstm_mdl.summary()
+    lstm_mdl.fit(x_train, y_train, epochs=5)
+    lstm_mdl.evaluate(x_test=x_test, y_test=y_test)
 
     cnn_model = CNN_mdl(embedding_layer=embedding_layer)
     cnn_model.fit(x_train, y_train, epochs=5)
     cnn_model.evaluate(x_test=x_test, y_test=y_test)
-    # stacked_lstm_mdl = LSTM_mdl(
-    #     submodel=LSTMSubModels.STACKED_LSTM, embedding_layer=embedding_layer
-    # )
-    # stacked_lstm_mdl.fit(x_train, y_train, epochs=5)
-    # stacked_lstm_mdl.evaluate(x_test=x_test, y_test=y_test)
+    stacked_lstm_mdl = LSTM_mdl(
+        submodel=LSTMSubModels.STACKED_LSTM, embedding_layer=embedding_layer
+    )
+    stacked_lstm_mdl.fit(x_train, y_train, epochs=5)
+    stacked_lstm_mdl.evaluate(x_test=x_test, y_test=y_test)
 
 
 def vectorize_data_multi_timestep(text_vectorization, loaded_dataset):
