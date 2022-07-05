@@ -40,7 +40,9 @@ from enum import Enum
 
 MODEL_SAVE_DIR_CNN: str = "./data/saved_models/TD_CNN"
 MODEL_SAVE_DIR_LSTM: str = "./data/saved_models/TD_LSTM"
+MODEL_SAVE_DIR_BILSTM: str = "./data/saved_models/TD_BILSTM"
 MODEL_SAVE_DIR_LSTM_STACKED: str = "./data/saved_models/TD_LSTM_STACKED"
+MODEL_SAVE_DIR_BILSTM_STACKED: str = "./data/saved_models/TD_BILSTM_STACKED"
 
 
 class NLPModels(Enum):
@@ -50,3 +52,10 @@ class NLPModels(Enum):
     LSTM_STACKED = 4
     BiLSTM_STACKED = 5
     BERT = 6
+
+class LSTMSubModels(Enum):
+    STACKED_LSTM = 1
+    BIDIRECTIONAL_STACKED_LSTM = 2
+    LSTM = 3
+    BIDIRECTIONAL = 4
+    

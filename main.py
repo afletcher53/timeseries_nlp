@@ -9,228 +9,38 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from keras.layers import Embedding, TextVectorization
 from functions.WindowGenerator import WindowGenerator
-import seaborn as sns
-import matplotlib.pyplot as plt
-from keras.models import Model
-from keras.layers import (
-    Input,
-    TimeDistributed,
-    LSTM,
-    Dense,
-    Conv1D,
-    Input,
-    Dense,
-    Flatten,
+from functions.dataframe import (
+    create_textvectorisation,
+    embed_vectors,
+    generate_windows,
+    load_datafile,
+    refactor_dataframe,
+    save_variables,
+    test_train_splt,
 )
-
+from functions.models.CNN import CNN_mdl
 from imblearn.over_sampling import SMOTE
 
-from tensorflow.keras.optimizers import SGD
-
-
 from constants import (
-    BATCH_SIZE,
-    DATA_FILEPATH,
     EMBEDDING_DIM,
     EMBEDDING_MATRIX_SAVE_FILE,
     EMPTY_TIMESTEP_TOKEN,
-    GLOVE_300D_FILEPATH,
-    LR,
     MAX_SEQUENCE_LENGTH,
     MAX_VOCAB_SIZE,
-    MODEL_SAVE_DIR_CNN,
-    MODEL_SAVE_DIR_LSTM_STACKED,
-    NUM_EPOCHS,
-    REARRANGED_DATA_FILEPATH,
-    REARRANGED_MULTI_INPUT_WINDOWED_DATA_FILEPATH,
-    REARRANGED_MULTI_INPUT_WINDOWED_LABEL_FILEPATH,
-    REARRANGED_SINGLE_INPUT_WINDOWED_DATA_FILEPATH,
-    REARRANGED_SINGLE_INPUT_WINDOWED_LABEL_FILEPATH,
     SEED,
-    TEST_TRAIN_SPLIT,
-    TIME_STEP,
-    VALIDATION_SPLIT,
     X_TEST_MULTI_INPUT_SAVE_FILE,
     X_TRAIN_MULTI_INPUT_SAVE_FILE,
     Y_TEST_MULTI_INPUT_SAVE_FILE,
     Y_TRAIN_MULTI_INPUT_SAVE_FILE,
-    NLPModels,
+    LSTMSubModels,
 )
+from functions.models.LSTM import LSTM_mdl
 
 tf.random.set_seed(SEED)
 tf.config.experimental.enable_op_determinism()
 warnings.simplefilter(action="ignore", category=FutureWarning)
 tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir="logs")
 AUTOTUNE = tf.data.AUTOTUNE
-
-
-def embed_vectors(text_vectorization):
-    embeddings_index = {}
-
-    f = open(GLOVE_300D_FILEPATH, encoding="UTF-8")
-    for line in tqdm(f, ncols=100, desc="Loading Glove Embeddings."):
-        values = line.split()
-        word = values[0]
-        coefs = numpy.asarray(values[1:], dtype="float32")
-        embeddings_index[word] = coefs
-    f.close()
-
-    print(f"Found {len(embeddings_index)} word vectors.")
-
-    vocabulary = text_vectorization.get_vocabulary()
-    word_index = dict(zip(vocabulary, range(len(vocabulary))))
-    embedding_matrix = numpy.zeros((MAX_VOCAB_SIZE, EMBEDDING_DIM))
-
-    for word, i in tqdm(word_index.items(), desc="Embedding Matrix."):
-        embedding_vector = embeddings_index.get(word)
-        if embedding_vector is not None:
-            embedding_matrix[i] = embedding_vector
-    return embedding_matrix
-
-
-def test_train_splt(loaded_labels, dataset):
-    X_train, X_test, Y_train, Y_test = train_test_split(
-        dataset,
-        loaded_labels,
-        test_size=TEST_TRAIN_SPLIT,
-        stratify=loaded_labels,
-        shuffle=True,
-        random_state=SEED,
-    )
-
-    print(
-        X_train.shape,
-        X_test.shape,
-        Y_train.shape,
-        Y_test.shape,
-    )
-    return X_test, Y_test, X_train, Y_train
-
-
-def vectorize_data_single_timestep(text_vectorization, loaded_dataset):
-    dataset = list(
-        map(
-            text_vectorization, tqdm(loaded_dataset, ncols=100, desc="Vectorizing data")
-        )
-    )
-    return dataset
-
-
-def generate_windows(time_series_df, multi: bool = False):
-    if multi:
-        if not exists(REARRANGED_MULTI_INPUT_WINDOWED_DATA_FILEPATH) and not exists(
-            REARRANGED_SINGLE_INPUT_WINDOWED_LABEL_FILEPATH
-        ):
-            w1 = WindowGenerator(
-                input_width=TIME_STEP, output_width=TIME_STEP, save_windows=True
-            )
-            w1.window_multi_input_sequence(time_series_df)
-        with open(REARRANGED_MULTI_INPUT_WINDOWED_DATA_FILEPATH, "rb") as f:
-            loaded_dataset = pickle.load(f)
-
-        with open(REARRANGED_MULTI_INPUT_WINDOWED_LABEL_FILEPATH, "rb") as f:
-            loaded_labels = pickle.load(f)
-    else:
-        if not exists(REARRANGED_SINGLE_INPUT_WINDOWED_DATA_FILEPATH) and not exists(
-            REARRANGED_SINGLE_INPUT_WINDOWED_LABEL_FILEPATH
-        ):
-            w1 = WindowGenerator(
-                input_width=TIME_STEP, output_width=TIME_STEP, save_windows=True
-            )
-            w1.window_single_input_sequence(time_series_df)
-        with open(REARRANGED_SINGLE_INPUT_WINDOWED_DATA_FILEPATH, "rb") as f:
-            loaded_dataset = pickle.load(f)
-
-        with open(REARRANGED_SINGLE_INPUT_WINDOWED_LABEL_FILEPATH, "rb") as f:
-            loaded_labels = pickle.load(f)
-
-    print("------ Windowed Data Loaded ------")
-    return loaded_dataset, loaded_labels
-
-
-def create_textvectorisation(df):
-    X_train_text = df.ehr
-    text_vectorization: TextVectorization = TextVectorization(
-        output_mode="int",
-        split="whitespace",
-        max_tokens=MAX_VOCAB_SIZE,
-        output_sequence_length=MAX_SEQUENCE_LENGTH,
-    )
-    text_vectorization.adapt(X_train_text)
-    return text_vectorization
-
-
-def refactor_dataframe(df):
-    # New dataframe to hold changed data shape - want to have columns equal to every day of the year, with each row indicating a specific patient. EHR entries are located in each cell
-    if not exists(REARRANGED_DATA_FILEPATH):
-        doy = list(range(0, 365))  # Unsuprisingly, there are 365 days in a year
-        ts_df = pd.DataFrame(
-            columns=doy
-        )  # add 365 day of year columns to the new dataframe
-        max_patient_num: int = len(
-            df.index
-        )  # Assumption is that this is Z set i.e. {0, ..., 365}
-        for i in tqdm(range(max_patient_num), desc="Rearranging patient data"):
-            rows = df.loc[df.patient_id == i]
-            for index, row in rows.iterrows():
-                ts_df.at[i, row.day_of_year] = row.ehr
-        print("------ Patient data restructuring is completed ------")
-        ts_df.to_csv(REARRANGED_DATA_FILEPATH, index=False)
-
-    time_series_df = pd.read_csv(REARRANGED_DATA_FILEPATH)
-    return time_series_df
-
-
-def load_datafile():
-    if not exists(DATA_FILEPATH):
-        raise ValueError("No datafile supplied.")
-
-    for _ in tqdm(range(0, 100), ncols=100, desc="Loading data.."):
-        df = pd.read_csv(DATA_FILEPATH, delimiter="\t", encoding="latin-1")
-    print(f"------Loading {DATA_FILEPATH} is completed ------")
-
-    doy = []  # Calc the day of the year for each entry in file
-    for index in range(len(df)):
-        d1 = datetime.strptime(df.iloc[index].date, "%Y-%m-%d %H:%M:%S")
-        day_of_year = d1.timetuple().tm_yday  # returns 1 for January 1st
-        doy.append(day_of_year)
-    df["day_of_year"] = doy
-
-    print(f"Total EHRs: {len(df.index)}")
-    print(f"Average EHR character length: {df.ehr.apply(len).mean()}")
-    return df
-
-
-def save_variables(x_train, y_train, x_test, y_test, embedding_matrix):
-    """Saves variables
-
-    Args:
-        x_train (_type_): _description_
-        y_train (_type_): _description_
-        x_test (_type_): _description_
-        y_test (_type_): _description_
-        embedding_matrix (_type_): _description_
-    """
-
-    print("------Saving varaibles for reuse ------")
-    print(f"X_train shape: {x_train.shape}")
-    print(f"Y_train shape: {y_train.shape}")
-    print(f"X_test shape: {x_test.shape}")
-    print(f"Y_test shape: {y_test.shape}")
-
-    print(f"Embedding shape: {embedding_matrix.shape}")
-
-    with open(X_TRAIN_MULTI_INPUT_SAVE_FILE, "wb") as f:
-        pickle.dump(x_train, f)
-    with open(Y_TRAIN_MULTI_INPUT_SAVE_FILE, "wb") as f:
-        pickle.dump(y_train, f)
-    with open(X_TEST_MULTI_INPUT_SAVE_FILE, "wb") as f:
-        pickle.dump(x_test, f)
-    with open(Y_TEST_MULTI_INPUT_SAVE_FILE, "wb") as f:
-        pickle.dump(y_test, f)
-
-    with open(EMBEDDING_MATRIX_SAVE_FILE, "wb") as f:
-        pickle.dump(embedding_matrix, f)
 
 
 def multiple_timestep_prediction(
@@ -291,82 +101,14 @@ def multiple_timestep_prediction(
         trainable=False,
     )
 
-    fit_cnn_model(x_train, y_train, x_test, y_test, embedding_layer)
-    fit_lstm_stacked_model(x_train, y_train, x_test, y_test, embedding_layer)
-
-
-def fit_cnn_model(x_train, y_train, x_test, y_test, embedding_layer):
-
-    document_input = Input(
-        shape=(MAX_SEQUENCE_LENGTH,),
-        dtype="int32",
+    cnn_model = CNN_mdl(embedding_layer=embedding_layer)
+    cnn_model.fit(x_train, y_train, epochs=5)
+    cnn_model.evaluate(x_test=x_test, y_test=y_test)
+    stacked_lstm_mdl = LSTM_mdl(
+        submodel=LSTMSubModels.STACKED_LSTM, embedding_layer=embedding_layer
     )
-    embedding_sequences = embedding_layer(document_input)
-
-    x = Conv1D(filters=300, kernel_size=5, padding="valid")(embedding_sequences)
-    doc_model = Model(document_input, x)
-    doc_model.summary()
-    input_docs = Input(
-        shape=(TIME_STEP, MAX_SEQUENCE_LENGTH), name="input_docs", dtype="int32"
-    )
-
-    x = TimeDistributed(doc_model, name="token_embedding_model")(input_docs)
-    x = Conv1D(filters=300, kernel_size=5, padding="valid")(x)
-    x = Flatten()(x)
-    outputs = Dense(1, activation="sigmoid")(x)
-
-    model = Model(input_docs, outputs)
-    model.summary()
-
-    opt = tf.keras.optimizers.Adam(learning_rate=LR, beta_1=0.5, beta_2=0.999)
-    model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
-    model.summary()
-    model.fit(
-        x_train,
-        y_train,
-        batch_size=BATCH_SIZE,
-        epochs=NUM_EPOCHS,
-        validation_split=VALIDATION_SPLIT,
-    )
-
-    results = model.evaluate(x_test, y_test)
-    print("test loss, test acc:", results)
-    model.save(MODEL_SAVE_DIR_CNN)
-
-
-def fit_lstm_stacked_model(x_train, y_train, x_test, y_test, embedding_layer):
-    document_input = Input(
-        shape=(MAX_SEQUENCE_LENGTH,),
-        dtype="int32",
-    )
-    embedding_sequences = embedding_layer(document_input)
-
-    x = LSTM(12, return_sequences=True)(embedding_sequences)
-    x = LSTM(12)(x)
-    doc_model = Model(document_input, x)
-    input_docs = Input(
-        shape=(TIME_STEP, MAX_SEQUENCE_LENGTH), name="input_docs", dtype="int32"
-    )
-
-    x = TimeDistributed(doc_model, name="token_embedding_model")(input_docs)
-    x = LSTM(12)(x)
-    outputs = Dense(1, activation="sigmoid")(x)
-    model = Model(input_docs, outputs)
-    opt = tf.keras.optimizers.Adam(learning_rate=LR, beta_1=0.5, beta_2=0.999)
-    model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
-    model.summary()
-
-    model.fit(
-        x_train,
-        y_train,
-        batch_size=BATCH_SIZE,
-        epochs=NUM_EPOCHS,
-        validation_split=VALIDATION_SPLIT,
-    )
-
-    results = model.evaluate(x_test, y_test)
-    print("test loss, test acc:", results)
-    model.save(MODEL_SAVE_DIR_LSTM_STACKED)
+    stacked_lstm_mdl.fit(x_train, y_train, epochs=5)
+    stacked_lstm_mdl.evaluate(x_test=x_test, y_test=y_test)
 
 
 def vectorize_data_multi_timestep(text_vectorization, loaded_dataset):
@@ -384,61 +126,8 @@ def vectorize_data_multi_timestep(text_vectorization, loaded_dataset):
     return test
 
 
-def confusion_matrix(model_type: NLPModels = NLPModels.CNN, poison: bool = False):
-    match model_type:
-        case NLPModels.CNN:
-            model = tf.keras.models.load_model(MODEL_SAVE_DIR_CNN)
-            title = "Time Distributed CNN Confusion Matrix"
-        case NLPModels.LSTM_STACKED:
-            model = tf.keras.models.load_model(MODEL_SAVE_DIR_LSTM_STACKED)
-            title = "Time Distributed LSTM_STACKED Confusion Matrix"
-    if poison:
-        x_test, y_test = poison_predictions(revisit=False)
-    else:
-        with open(X_TEST_MULTI_INPUT_SAVE_FILE, "rb") as f:
-            x_test = pickle.load(f)
-        with open(Y_TEST_MULTI_INPUT_SAVE_FILE, "rb") as f:
-            y_test = pickle.load(f)
-
-    y_pred = model.predict(x_test)
-    y_pred_classes = numpy.where(
-        y_pred > 0.5, 1, 0
-    ).ravel()  # Predict class labels with weighting.
-    cm = tf.math.confusion_matrix(
-        labels=y_test, predictions=y_pred_classes, num_classes=2
-    )
-    print(cm)
-
-
-def poison_predictions(revisit: bool = True):
-    """Poisons test data to ensure that only one class is represented (to see if the model
-       only predicts one class etc). Uses data that the model has trained on so should
-       achieve greater accuracy.
-
-    Args:
-        revisit (bool, optional): Selection of class. Defaults to True.
-
-    Returns:
-        Numpy: x_test and y_test data
-    """
-    with open(X_TRAIN_MULTI_INPUT_SAVE_FILE, "rb") as f:
-        x_test = pickle.load(f)
-    with open(Y_TRAIN_MULTI_INPUT_SAVE_FILE, "rb") as f:
-        y_test = pickle.load(f)
-    y = numpy.where(y_test == int(revisit))[0]
-    a = list()
-    for _, element in enumerate(y):
-        a.append(x_test[element])
-    a = numpy.array(a)
-    y = [int(revisit)] * a.shape[0]
-    y = numpy.array(y)
-    return a, y
-
-
 def main():
-    # multiple_timestep_prediction(load_from_save=True)
-    confusion_matrix(model_type=NLPModels.CNN)
-    confusion_matrix(model_type=NLPModels.LSTM_STACKED)
+    multiple_timestep_prediction(load_from_save=False)
 
 
 if __name__ == "__main__":
