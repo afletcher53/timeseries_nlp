@@ -18,6 +18,7 @@ from keras.layers import (
     Dense,
     Input,
     Dense,
+    BatchNormalization,
 )
 from keras.models import Model
 import tensorflow as tf
@@ -50,10 +51,12 @@ class LSTM_mdl:
         embedding_sequences = self.embedding_layer(document_input)
 
         if self.stacked:
-            x = LSTM(self.neuron_num, return_sequences=True)(embedding_sequences)
+            x = BatchNormalization()(embedding_sequences)
+            x = LSTM(self.neuron_num, return_sequences=True)(x)
             x = LSTM(self.neuron_num)(x)
         else:
-            x = LSTM(self.neuron_num)(embedding_sequences)
+            x = BatchNormalization()(embedding_sequences)
+            x = LSTM(self.neuron_num)(x)
         doc_model = Model(document_input, x)
         input_docs = Input(
             shape=(TIME_STEP, MAX_SEQUENCE_LENGTH), name="input_docs", dtype="int32"
@@ -63,8 +66,13 @@ class LSTM_mdl:
         x = LSTM(self.neuron_num)(x)
         outputs = Dense(1, activation="sigmoid")(x)
         model = Model(input_docs, outputs)
-        opt = tf.keras.optimizers.Adam(learning_rate=self.LR, beta_1=0.5, beta_2=0.999)
-        model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
+        from tensorflow.keras.optimizers import SGD
+
+        sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+
+        model.compile(
+            loss="categorical_crossentropy", optimizer=sgd, metrics=["accuracy"]
+        )
         return model
 
     def fit(
