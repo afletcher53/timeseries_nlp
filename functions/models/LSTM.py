@@ -11,17 +11,15 @@ from constants import (
     VALIDATION_SPLIT,
     LSTMSubModels,
 )
-from keras.layers import (
+from tensorflow.keras.layers import (
     Input,
     TimeDistributed,
     LSTM,
     Dense,
     Input,
     Dense,
-    BatchNormalization,
 )
-from keras.models import Model
-import tensorflow as tf
+from tensorflow.keras.models import Model
 from functions.confusion_matrix import confusion_matrix
 
 
@@ -51,12 +49,10 @@ class LSTM_mdl:
         embedding_sequences = self.embedding_layer(document_input)
 
         if self.stacked:
-            x = BatchNormalization()(embedding_sequences)
-            x = LSTM(self.neuron_num, return_sequences=True)(x)
+            x = LSTM(self.neuron_num, return_sequences=True)(embedding_sequences)
             x = LSTM(self.neuron_num)(x)
         else:
-            x = BatchNormalization()(embedding_sequences)
-            x = LSTM(self.neuron_num)(x)
+            x = LSTM(self.neuron_num)(embedding_sequences)
         doc_model = Model(document_input, x)
         input_docs = Input(
             shape=(TIME_STEP, MAX_SEQUENCE_LENGTH), name="input_docs", dtype="int32"
