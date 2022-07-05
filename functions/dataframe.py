@@ -13,7 +13,8 @@ import numpy
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
-from keras.layers import TextVectorization
+from tensorflow.keras.layers.experimental.preprocessing import TextVectorization
+
 from functions.WindowGenerator import WindowGenerator
 
 
