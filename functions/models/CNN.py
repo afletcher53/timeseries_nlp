@@ -10,7 +10,7 @@ from constants import (
 from functions.confusion_matrix import confusion_matrix
 import tensorflow as tf
 from tensorflow.keras.models import Model
-from tennsorflow.keras.layers import (
+from tensorflow.keras.layers import (
     Input,
     TimeDistributed,
     Dense,
