@@ -7,17 +7,24 @@ import pandas as pd
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
-from keras.layers import Embedding, TextVectorization, BatchNormalization, Bidirectional
-from functions.LSTMModel import LSTMModel
+from keras.layers import Embedding, TextVectorization
 from functions.WindowGenerator import WindowGenerator
+import seaborn as sns
+import matplotlib.pyplot as plt
 from keras.models import Model
 from keras.layers import (
     Input,
     TimeDistributed,
     LSTM,
     Dense,
+    Conv1D,
+    Input,
+    Dense,
+    Flatten,
 )
+
 from imblearn.over_sampling import SMOTE
+
 from tensorflow.keras.optimizers import SGD
 
 
@@ -31,6 +38,8 @@ from constants import (
     LR,
     MAX_SEQUENCE_LENGTH,
     MAX_VOCAB_SIZE,
+    MODEL_SAVE_DIR_CNN,
+    MODEL_SAVE_DIR_LSTM_STACKED,
     NUM_EPOCHS,
     REARRANGED_DATA_FILEPATH,
     REARRANGED_MULTI_INPUT_WINDOWED_DATA_FILEPATH,
@@ -45,6 +54,7 @@ from constants import (
     X_TRAIN_MULTI_INPUT_SAVE_FILE,
     Y_TEST_MULTI_INPUT_SAVE_FILE,
     Y_TRAIN_MULTI_INPUT_SAVE_FILE,
+    NLPModels,
 )
 
 tf.random.set_seed(SEED)
@@ -191,48 +201,6 @@ def load_datafile():
     return df
 
 
-def single_timestep_predictions():
-    df = load_datafile()
-    time_series_df = refactor_dataframe(df)
-    text_vectorization = create_textvectorisation(df)
-    loaded_dataset, loaded_labels = generate_windows(time_series_df)
-    dataset = vectorize_data_single_timestep(text_vectorization, loaded_dataset)
-    dataset = numpy.array(dataset)
-    loaded_labels = numpy.array(loaded_labels)
-    X_test, Y_test, X_train, Y_train = test_train_splt(loaded_labels, dataset)
-    embedding_matrix = embed_vectors(text_vectorization)
-
-    embedding_layer = Embedding(
-        MAX_VOCAB_SIZE,
-        EMBEDDING_DIM,
-        weights=[embedding_matrix],
-        input_length=MAX_SEQUENCE_LENGTH,
-        trainable=False,
-    )
-
-    LSTM1 = LSTMModel(embedding_layer=embedding_layer)
-    LSTM1.compile_model()
-
-    print(LSTM1.summary())
-
-    from keras.callbacks import ReduceLROnPlateau
-
-    ReduceLROnPlateau = ReduceLROnPlateau(
-        factor=0.1, min_lr=0.01, monitor="val_loss", verbose=1
-    )
-
-    LSTM1.model.fit(
-        X_train,
-        Y_train,
-        batch_size=BATCH_SIZE,
-        epochs=NUM_EPOCHS,
-        validation_split=0.2,
-        callbacks=[ReduceLROnPlateau],
-    )
-
-    print(LSTM1.model.evaluate(X_test, Y_test))
-
-
 def save_variables(x_train, y_train, x_test, y_test, embedding_matrix):
     """Saves variables
 
@@ -324,11 +292,10 @@ def multiple_timestep_prediction(
     )
 
     fit_cnn_model(x_train, y_train, x_test, y_test, embedding_layer)
-    # fit_lstm_recurrent_model(x_train, y_train, x_test, y_test, embedding_layer)
+    fit_lstm_stacked_model(x_train, y_train, x_test, y_test, embedding_layer)
 
 
 def fit_cnn_model(x_train, y_train, x_test, y_test, embedding_layer):
-    from keras.layers import Conv1D, Input, Dense, Flatten
 
     document_input = Input(
         shape=(MAX_SEQUENCE_LENGTH,),
@@ -364,9 +331,10 @@ def fit_cnn_model(x_train, y_train, x_test, y_test, embedding_layer):
 
     results = model.evaluate(x_test, y_test)
     print("test loss, test acc:", results)
+    model.save(MODEL_SAVE_DIR_CNN)
 
 
-def fit_lstm_recurrent_model(x_train, y_train, x_test, y_test, embedding_layer):
+def fit_lstm_stacked_model(x_train, y_train, x_test, y_test, embedding_layer):
     document_input = Input(
         shape=(MAX_SEQUENCE_LENGTH,),
         dtype="int32",
@@ -383,9 +351,7 @@ def fit_lstm_recurrent_model(x_train, y_train, x_test, y_test, embedding_layer):
     x = TimeDistributed(doc_model, name="token_embedding_model")(input_docs)
     x = LSTM(12)(x)
     outputs = Dense(1, activation="sigmoid")(x)
-
     model = Model(input_docs, outputs)
-
     opt = tf.keras.optimizers.Adam(learning_rate=LR, beta_1=0.5, beta_2=0.999)
     model.compile(loss="binary_crossentropy", optimizer=opt, metrics=["accuracy"])
     model.summary()
@@ -400,6 +366,7 @@ def fit_lstm_recurrent_model(x_train, y_train, x_test, y_test, embedding_layer):
 
     results = model.evaluate(x_test, y_test)
     print("test loss, test acc:", results)
+    model.save(MODEL_SAVE_DIR_LSTM_STACKED)
 
 
 def vectorize_data_multi_timestep(text_vectorization, loaded_dataset):
@@ -417,9 +384,61 @@ def vectorize_data_multi_timestep(text_vectorization, loaded_dataset):
     return test
 
 
+def confusion_matrix(model_type: NLPModels = NLPModels.CNN, poison: bool = False):
+    match model_type:
+        case NLPModels.CNN:
+            model = tf.keras.models.load_model(MODEL_SAVE_DIR_CNN)
+            title = "Time Distributed CNN Confusion Matrix"
+        case NLPModels.LSTM_STACKED:
+            model = tf.keras.models.load_model(MODEL_SAVE_DIR_LSTM_STACKED)
+            title = "Time Distributed LSTM_STACKED Confusion Matrix"
+    if poison:
+        x_test, y_test = poison_predictions(revisit=False)
+    else:
+        with open(X_TEST_MULTI_INPUT_SAVE_FILE, "rb") as f:
+            x_test = pickle.load(f)
+        with open(Y_TEST_MULTI_INPUT_SAVE_FILE, "rb") as f:
+            y_test = pickle.load(f)
+
+    y_pred = model.predict(x_test)
+    y_pred_classes = numpy.where(
+        y_pred > 0.5, 1, 0
+    ).ravel()  # Predict class labels with weighting.
+    cm = tf.math.confusion_matrix(
+        labels=y_test, predictions=y_pred_classes, num_classes=2
+    )
+    print(cm)
+
+
+def poison_predictions(revisit: bool = True):
+    """Poisons test data to ensure that only one class is represented (to see if the model
+       only predicts one class etc). Uses data that the model has trained on so should
+       achieve greater accuracy.
+
+    Args:
+        revisit (bool, optional): Selection of class. Defaults to True.
+
+    Returns:
+        Numpy: x_test and y_test data
+    """
+    with open(X_TRAIN_MULTI_INPUT_SAVE_FILE, "rb") as f:
+        x_test = pickle.load(f)
+    with open(Y_TRAIN_MULTI_INPUT_SAVE_FILE, "rb") as f:
+        y_test = pickle.load(f)
+    y = numpy.where(y_test == int(revisit))[0]
+    a = list()
+    for _, element in enumerate(y):
+        a.append(x_test[element])
+    a = numpy.array(a)
+    y = [int(revisit)] * a.shape[0]
+    y = numpy.array(y)
+    return a, y
+
+
 def main():
-    multiple_timestep_prediction(load_from_save=True)
-    # single_timestep_predictions()
+    # multiple_timestep_prediction(load_from_save=True)
+    confusion_matrix(model_type=NLPModels.CNN)
+    confusion_matrix(model_type=NLPModels.LSTM_STACKED)
 
 
 if __name__ == "__main__":
