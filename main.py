@@ -38,7 +38,7 @@ from constants import (
 from functions.models.LSTM import LSTM_mdl
 
 tf.random.set_seed(SEED)
-tf.config.experimental.enable_op_determinism()
+
 warnings.simplefilter(action="ignore", category=FutureWarning)
 tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir="logs")
 AUTOTUNE = tf.data.AUTOTUNE
