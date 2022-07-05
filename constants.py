@@ -5,7 +5,7 @@ MAX_VOCAB_SIZE: int = (
 MAX_SEQUENCE_LENGTH: int = 200  # max number of words in a comment to use
 OOV_TOKEN: str = "<00V>"
 BATCH_SIZE: int = 128
-NUM_EPOCHS: int = 20
+NUM_EPOCHS: int = 40
 TEST_TRAIN_SPLIT: float = 0.2
 VALIDATION_SPLIT: float = 0.2
 
@@ -35,3 +35,18 @@ X_VAL_MULTI_INPUT_SAVE_FILE: str = "./data/X_val_MULTI.pkl"
 X_TEST_MULTI_INPUT_SAVE_FILE: str = "./data/X_test_MULTI.pkl"
 Y_TEST_MULTI_INPUT_SAVE_FILE: str = "./data/Y_test_MULTI.pkl"
 EMBEDDING_MATRIX_SAVE_FILE: str = "./data/embedding_matrix.pkl"
+
+from enum import Enum
+
+MODEL_SAVE_DIR_CNN: str = "./data/saved_models/TD_CNN"
+MODEL_SAVE_DIR_LSTM: str = "./data/saved_models/TD_LSTM"
+MODEL_SAVE_DIR_LSTM_STACKED: str = "./data/saved_models/TD_LSTM_STACKED"
+
+
+class NLPModels(Enum):
+    CNN = 1
+    LSTM = 2
+    BiLSTM = 3
+    LSTM_STACKED = 4
+    BiLSTM_STACKED = 5
+    BERT = 6
