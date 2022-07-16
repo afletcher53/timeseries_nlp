@@ -1,61 +1,37 @@
-EMBEDDING_DIM: int = 300  # Dimensions of the word vectors
-MAX_VOCAB_SIZE: int = (
-    10000  # how many unique words to use (i.e num rows in embedding vector)
-)
-MAX_SEQUENCE_LENGTH: int = 200  # max number of words in a comment to use
-OOV_TOKEN: str = "<00V>"
-BATCH_SIZE: int = 128
-NUM_EPOCHS: int = 40
+import os
+
+# HOME_DIR:str = '/home/aaron/timeseries_nlp'
+cwd = os.getcwd()
+HOME_DIR:str = cwd
+
+DATA_DIR: str = os.path.join(HOME_DIR, "data")
+DATA_FILEPATH: str = os.path.join(DATA_DIR, "data.csv")
+REARRANGED_DATA_FILEPATH: str = os.path.join(DATA_DIR, "rearranged_data.csv")
 TEST_TRAIN_SPLIT: float = 0.2
-VALIDATION_SPLIT: float = 0.2
-
 SEED: int = 2022
-DATA_FILEPATH: str = "./data/data.csv"
-REARRANGED_DATA_FILEPATH: str = "./data/rearranged_data.csv"
-REARRANGED_SINGLE_INPUT_WINDOWED_DATA_FILEPATH: str = "./data/windowed_single_input.pkl"
-REARRANGED_SINGLE_INPUT_WINDOWED_LABEL_FILEPATH: str = (
-    "./data/windowed_single_labels.pkl"
-)
-REARRANGED_MULTI_INPUT_WINDOWED_DATA_FILEPATH: str = "./data/windowed_MULTI_input.pkl"
-REARRANGED_MULTI_INPUT_WINDOWED_LABEL_FILEPATH: str = "./data/windowed_MULTI_labels.pkl"
-MAX_SEQUENCE_LENGTH: int = 200  # max number of words in a comment to use
-MAX_VOCAB_SIZE: int = (
-    10000  # how many unique words to use (i.e num rows in embedding vector)
-)
-LR: float = 1e-4
-
-GLOVE_300D_FILEPATH: str = "./data/glove.6B.300d.txt"
+MAX_VOCAB_SIZE: int = 10000
 EMPTY_TIMESTEP_TOKEN: str = "<EMPTY>"
+REARRANGED_INPUT_WINDOWED_DATA_FILEPATH: str = os.path.join(
+    DATA_DIR, "windowed_input.pkl"
+)
+REARRANGED_INPUT_WINDOWED_LABEL_FILEPATH: str = os.path.join(
+    DATA_DIR, "windowed_labels.pkl"
+)
+X_TRAIN_INPUT_SAVE_FILE: str = os.path.join(DATA_DIR, "X_train.pkl")
+Y_TRAIN_INPUT_SAVE_FILE: str = os.path.join(DATA_DIR, "Y_train.pkl")
+Y_VAL_INPUT_SAVE_FILE: str = os.path.join(DATA_DIR, "Y_val.pkl")
+X_VAL_INPUT_SAVE_FILE: str = os.path.join(DATA_DIR, "X_val.pkl")
+X_TEST_INPUT_SAVE_FILE: str = os.path.join(DATA_DIR, "X_test.pkl")
+Y_TEST_INPUT_SAVE_FILE: str = os.path.join(DATA_DIR, "Y_test.pkl")
+EMBEDDING_MATRIX_SAVE_FILE: str = os.path.join(DATA_DIR, "embedding_matrix.pkl")
+GLOVE_300D_FILEPATH: str = os.path.join(DATA_DIR, "glove.6B.300d.txt")
+EMBEDDING_DIM: int = 300  # Dimensions of the word vectors
+LOAD_FROM_SAVE: bool = False  # Load the rearranged df from save
 TIME_STEP: int = 30
-
-X_TRAIN_MULTI_INPUT_SAVE_FILE: str = "./data/X_train_MULTI.pkl"
-Y_TRAIN_MULTI_INPUT_SAVE_FILE: str = "./data/Y_train_MULTI.pkl"
-Y_VAL_MULTI_INPUT_SAVE_FILE: str = "./data/Y_val_MULTI.pkl"
-X_VAL_MULTI_INPUT_SAVE_FILE: str = "./data/X_val_MULTI.pkl"
-X_TEST_MULTI_INPUT_SAVE_FILE: str = "./data/X_test_MULTI.pkl"
-Y_TEST_MULTI_INPUT_SAVE_FILE: str = "./data/Y_test_MULTI.pkl"
-EMBEDDING_MATRIX_SAVE_FILE: str = "./data/embedding_matrix.pkl"
-
-from enum import Enum
-
-MODEL_SAVE_DIR_CNN: str = "./data/saved_models/TD_CNN"
-MODEL_SAVE_DIR_LSTM: str = "./data/saved_models/TD_LSTM"
-MODEL_SAVE_DIR_BILSTM: str = "./data/saved_models/TD_BILSTM"
-MODEL_SAVE_DIR_LSTM_STACKED: str = "./data/saved_models/TD_LSTM_STACKED"
-MODEL_SAVE_DIR_BILSTM_STACKED: str = "./data/saved_models/TD_BILSTM_STACKED"
-
-
-class NLPModels(Enum):
-    CNN = 1
-    LSTM = 2
-    BiLSTM = 3
-    LSTM_STACKED = 4
-    BiLSTM_STACKED = 5
-    BERT = 6
-
-class LSTMSubModels(Enum):
-    STACKED_LSTM = 1
-    BIDIRECTIONAL_STACKED_LSTM = 2
-    LSTM = 3
-    BIDIRECTIONAL = 4
-    
+VOCAB_SAVE_FILE: str = os.path.join(DATA_DIR, "vocabulary.pkl")
+MAX_SEQUENCE_LENGTH: int = 200
+BALANCE_DATA: bool = True
+LR: float = 1e-4
+BATCH_SIZE: int = 128
+NUM_EPOCHS: int = 5
+VALIDATION_SPLIT: float = 0.1
