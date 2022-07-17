@@ -31,7 +31,9 @@ X_TEST_INPUT_SAVE_FILE_PRE_VEC: str = os.path.join(DATA_DIR, "X_test_pre_vec.pkl
 
 EMBEDDING_MATRIX_SAVE_FILE: str = os.path.join(DATA_DIR, "embedding_matrix.pkl")
 GLOVE_300D_FILEPATH: str = os.path.join(DATA_DIR, "glove.6B.300d.txt")
-FINE_TUNED_GLOVE_300D_FILEPATH: str = os.path.join(DATA_DIR, "fine_tuned_glove.6B.300d.pkl")
+FINE_TUNED_GLOVE_300D_FILEPATH: str = os.path.join(
+    DATA_DIR, "fine_tuned_glove.6B.300d.txt"
+)
 QUERY_WORDS: str = os.path.join(
     DATA_DIR, "query_words.txt"
 )  # Query words for word embedding visualisation
