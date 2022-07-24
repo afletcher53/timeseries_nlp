@@ -44,6 +44,6 @@ VOCAB_SAVE_FILE: str = os.path.join(DATA_DIR, "vocabulary.pkl")
 MAX_SEQUENCE_LENGTH: int = 350
 BALANCE_DATA: bool = True
 LR: float = 1e-4
-BATCH_SIZE: int = 64
+BATCH_SIZE: int = 16
 NUM_EPOCHS: int = 5
 VALIDATION_SPLIT: float = 0.1
